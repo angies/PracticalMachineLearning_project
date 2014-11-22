@@ -1,0 +1,177 @@
+## Practical Machine Learning Course Project.
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, its goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. 
+
+To build a machine learning algorithm, we have to integrate the "Components of a Predictor” in five stages:
+
+   1. Question
+   2. Input data
+   3. Features
+   4. Algorithm
+   5. Parameters
+   6. Evaluation
+
+## 1. Question
+
+The goal of this project is to predict the manner in which persons did the exercise.
+
+## 2. Input data
+
+Downloading and loading raw data.
+
+I will load the appropriate packages.
+```{r, echo=FALSE,cache=TRUE}
+library(AppliedPredictiveModeling)
+library(caret)
+library(randomForest)
+library(ggplot2)
+```
+
+Downloading and loading raw data
+
+```{r, echo=FALSE}
+# Create a new data directory if it does no exist yet
+if (!file.exists("./data")){
+   dir.create("./data")
+}
+# Download raw training data 
+if (!file.exists("./data/pml-training.csv")){
+    download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv",
+                  "./data/pml-training.csv")
+}
+# Download raw testing data 
+if (!file.exists("./data/pml-testing.csv")){
+    download.file("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv",  
+                  "./data/pml-testing.csv")
+}
+```
+
+```{r}
+# Loading raw data
+raw_training = read.csv("./data/pml-training.csv", na.strings = c("NA", ""))
+raw_testing = read.csv("./data/pml-testing.csv", na.strings = c("NA", ""))
+dim(raw_training)
+dim(raw_testing)
+```
+
+## 3. Features
+
+In raw training data there are 19,622 observations with 160 variables. The variable I will use as outcome is classe. There are missing values, so I need to clean raw data and I can remove some columns, then I will take a look at the remaining columns.
+
+```{r}
+# Cleaning raw training data
+na_test = sapply(raw_training, function(x) {sum(is.na(x))})
+table(na_test)
+bad_columns = names(na_test[na_test==19216])
+tidy_training = raw_training[, !names(raw_training) %in% bad_columns]
+tidy_training = tidy_training[,-c(1:7)] # 1 to 7 columns are not neccesary for predicting.
+dim(tidy_training) # New dimensions
+```
+The tidy training set has 19,622 observations and 53 variables now.
+
+## 4. Algorithm
+
+Because the provided training set is very large (19,622 observations) the time consuming to train is too large. This time is very large when I tried to use caret package, train function and random forest(rf) method for total training set. 
+
+I decided look for precision by classification tree. To reduce the time consuming to train, I divided the given training set into four equal sets, as medium size, each of which was then split into a training set (60% of the observations) and a testing set (40% of the observations).
+
+```{r}
+library(caret)
+# Divide the given training set into 4 roughly equal sets.
+set.seed(4567)
+index <- createDataPartition(y=tidy_training$classe, p=0.25, list=FALSE)
+par1 <- tidy_training[index,]
+remain <- tidy_training[-index,]
+set.seed(4567)
+index <- createDataPartition(y=remain$classe, p=0.33, list=FALSE)
+par2 <- remain[index,]
+remain <- remain[-index,]
+set.seed(4567)
+index <- createDataPartition(y=remain$classe, p=0.5, list=FALSE)
+par3 <- remain[index,]
+par4 <- remain[-index,]
+# Divide each of these 4 sets into training (60%) and test (40%) sets.
+set.seed(4567)
+inTrain <- createDataPartition(y=par1$classe, p=0.6, list=FALSE)
+train_par1 <- par1[inTrain,]
+test_par1 <- par1[-inTrain,]
+set.seed(4567)
+inTrain <- createDataPartition(y=par2$classe, p=0.6, list=FALSE)
+train_par2 <- par2[inTrain,]
+test_par2 <- par2[-inTrain,]
+set.seed(4567)
+inTrain <- createDataPartition(y=par3$classe, p=0.6, list=FALSE)
+train_par3 <- par3[inTrain,]
+test_par3 <- par3[-inTrain,]
+set.seed(4567)
+inTrain <- createDataPartition(y=par4$classe, p=0.6, list=FALSE)
+train_par4 <- par4[inTrain,]
+test_par4 <- par4[-inTrain,]
+```
+
+## 5. Parameters
+
+To get the best possible precision classification trees, preprocessing and cross validation had been chosen.
+
+## 6. Evaluation
+
+```{r}
+# Train on training set 1 of 4 with both preprocessing and cross validation.
+set.seed(4545)
+modFit1 <- train(train_par1$classe ~ ., method="rf", preProcess=c("center", "scale"), trControl=trainControl(method = "cv", number = 4), data=train_par1)
+#print(modFit1, digits=3)
+# Run against testing set 1 of 4.
+predictions <- predict(modFit1, newdata=test_par1)
+#print(confusionMatrix(predictions, test_par1$classe), digits=4)
+
+# Train on training set 2 of 4 with both preprocessing and cross validation.
+set.seed(4545)
+modFit2 <- train(train_par2$classe ~ ., method="rf", preProcess=c("center", "scale"), trControl=trainControl(method = "cv", number = 4), data=train_par2)
+#print(modFit2, digits=3)
+# Run against testing set 2 of 4.
+predictions <- predict(modFit2, newdata=test_par2)
+#print(confusionMatrix(predictions, test_par2$classe), digits=4)
+
+# Train on training set 3 of 4 with both preprocessing and cross validation.
+set.seed(4545)
+modFit3 <- train(train_par3$classe ~ ., method="rf", preProcess=c("center", "scale"), trControl=trainControl(method = "cv", number = 4), data=train_par3)
+#print(modFit3, digits=3)
+# Run against testing set 3 of 4.
+predictions <- predict(modFit3, newdata=test_par3)
+#print(confusionMatrix(predictions, test_par3$classe), digits=4)
+
+# Train on training set 4 of 4 with both preprocessing and cross validation.
+set.seed(4545)
+modFit4 <- train(train_par4$classe ~ ., method="rf", preProcess=c("center", "scale"), trControl=trainControl(method = "cv", number = 4), data=train_par4)
+#print(modFit4, digits=3)
+# Run against testing set 4 of 4.
+predictions <- predict(modFit4, newdata=test_par4)
+#print(confusionMatrix(predictions, test_par4$classe), digits=4)
+```
+### Out of Sample Error
+
+The error rate after running the predict() function above on the four testing sets is:
+
+    * Testing Set 1: 1 - .9561 = 0.0439
+    * Testing Set 2: 1 - .9691 = 0.0309
+    * Testing Set 3: 1 - .9609 = 0.0391
+    * Testing Set 4: 1 - .9639 = 0.0361
+    
+Because of their same size subsets, I decided to average the out of sample error rates derived by applying the random forest method with both preprocessing and cross validation against test sets 1-4 yielding a predicted out of sample rate of 0.0375.
+
+### Conclusion
+
+We have built a model to predict exercise form based on movement data. We estimate the out of sample rate to be 0.0375. This is an important prediction to how well persons do a particular activity.
+
+The following is to evaluate predictions to 20 testing set.
+
+```{r}
+# Run against 20 testing set(second part of evaluation).
+print(predict(modFit1, newdata=raw_testing))
+print(predict(modFit2, newdata=raw_testing))
+print(predict(modFit3, newdata=raw_testing))
+print(predict(modFit4, newdata=raw_testing))
+```
+
+The modFit1, modFit2 and modFit4 models have the same results on predicting. Perhaps, modFit2 and modFit4 will be better to predict answers correctly than modFit1 will be. 
+
